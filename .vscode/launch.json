@@ -6,9 +6,9 @@
     "configurations": [
         {
             "name": "gcc - Criar e depurar o arquivo ativo",
+            "targetArchitecture": "x86_64",
             "type": "cppdbg",
             "request": "launch",
-            //"program": "${fileDirname}/${fileBasenameNoExtension}",
             "program": "${fileDirname}/build/jogo",
             "args": [],
             "stopAtEntry": false,
