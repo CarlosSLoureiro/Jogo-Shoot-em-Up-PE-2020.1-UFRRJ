@@ -1,0 +1,35 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "C/C++: gcc arquivo de build ativo",
+            "command": "/usr/bin/gcc",
+            "args": [
+                //"-Wall",
+                //"-Wextra",
+                //"-pedantic",
+                "-g",
+                "${file}",
+                "-o",
+                //"${fileDirname}/${fileBasenameNoExtension}",
+                "${fileDirname}/build/jogo",
+                "-lSDL2",
+                "-lSDL2_image",
+                "-lSDL2_mixer"
+                //"-lmpg123"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Tarefa gerada pelo Depurador."
+        }
+    ],
+    "version": "2.0.0"
+}
