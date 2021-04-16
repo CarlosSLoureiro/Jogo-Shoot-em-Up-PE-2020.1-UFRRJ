@@ -6,7 +6,7 @@
 
 #define MAX_TIROS 1000
 
-/* Define as estruturas do jogo. */
+/* Define as estruturas do jogo */
 
 typedef struct {
   float x, y, dy;
