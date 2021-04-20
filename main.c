@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define FPS 60
+#define MS_POR_FRAME 1000 / FPS
 #define MAX_TIROS 1000
 
 /* Define as estruturas do jogo */
@@ -28,7 +30,8 @@ typedef struct {
 } Texturas;
 
 typedef struct {
-  Mix_Music *tiro;
+  Mix_Music *mapa;
+  Mix_Chunk *tiro;
 } Sons;
 
 
@@ -64,9 +67,7 @@ void adicionarTiro(float x, float y, float dx) {
   }
 
   //Faz o som de tiro
-  if (!Mix_PlayingMusic()) {
-    Mix_PlayMusic(sons.tiro, 1);
-  }
+  Mix_PlayChannel(-1, sons.tiro, 0);
 }
 
 void removerTiro(int i) {
@@ -76,7 +77,7 @@ void removerTiro(int i) {
   }
 }
 
-bool processar(SDL_Window *window, Personagem *protagonista) {
+bool processar_eventos(SDL_Window *window, Personagem *protagonista) {
   SDL_Event event;
   
   bool finalizado = false;
@@ -167,6 +168,10 @@ bool processar(SDL_Window *window, Personagem *protagonista) {
 }
 
 void renderizar(SDL_Renderer *renderer, Personagem *protagonista) {
+  if (!Mix_PlayingMusic()) {
+    Mix_PlayMusic(sons.mapa, 1);
+  }
+
   //Define a cor do desenho para azul
   SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
   
@@ -273,34 +278,38 @@ int main(int argc, char *argv[]) {
   SDL_RenderSetLogicalSize(renderer, 320, 240);
 
   //Carrega imagem do protagonista
-  SDL_Surface *imagem = IMG_Load("assets/images/protagonista-1.png");
+  SDL_Surface *imagem = IMG_Load("assets/imagens/protagonista-1.png");
   protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
   SDL_FreeSurface(imagem);
 
   //Carrega imagem do inimigo
-  imagem = IMG_Load("assets/images/inimigo-1.png");
+  imagem = IMG_Load("assets/imagens/inimigo-1.png");
   inimigo.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
   SDL_FreeSurface(imagem);
 
   //Carrega o mapa  
-  imagem = IMG_Load("assets/images/mapa-1.png");
+  imagem = IMG_Load("assets/imagens/mapa-1.png");
   texturas.mapa = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
 
   //Carrega o tiro  
-  imagem = IMG_Load("assets/images/tiro.png");
+  imagem = IMG_Load("assets/imagens/tiro.png");
   texturas.tiro = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
   
-  //Carrega som
-  sons.tiro = Mix_LoadMUS("assets/songs/tiro.ogg");
+  //Carrega as Musicas e Efeitos
+  sons.mapa = Mix_LoadMUS("assets/sons/bob1.wav");
+  sons.tiro = Mix_LoadWAV("assets/sons/tiro.wav");
   
   bool finalizado = false;
   
   //Loop de eventos
   do {
+    //Pega tempo inicial
+    unsigned inicio = SDL_GetTicks();
+
     //Verifica eventos
-    finalizado = processar(window, &protagonista);
+    finalizado = processar_eventos(window, &protagonista);
     
     //Atualiza a lógica
     atualizarLogica(&protagonista);
@@ -308,8 +317,16 @@ int main(int argc, char *argv[]) {
     //Atualiza o render
     renderizar(renderer, &protagonista);
     
-    //Para não fritar a CPU
-    SDL_Delay(10);
+    //Pega o tempo final
+    unsigned fim = SDL_GetTicks();
+
+    //Define a diferença entre os tempos 
+    unsigned diferenca = fim - inicio;
+
+    //Verifica se a diferença é menor que o ms por frame definido no inicio do codigo
+    if (diferenca < MS_POR_FRAME) {
+      SDL_Delay(MS_POR_FRAME - diferenca); //Define o delay de acordo com a diferença
+    }
   } while (!finalizado);
 
   
@@ -317,7 +334,8 @@ int main(int argc, char *argv[]) {
   SDL_DestroyRenderer(renderer);
 
   //Remove os sons
-  Mix_FreeMusic(sons.tiro);
+  Mix_FreeMusic(sons.mapa);
+  Mix_FreeChunk(sons.tiro);
 
   //Remove as texturas
   SDL_DestroyTexture(protagonista.textura);
