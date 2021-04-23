@@ -11,9 +11,8 @@ typedef struct {
   float x, y, dy;
   short vida;
   char *nome;
-  int sprite;
-  float escala;
-  bool vivo, andando, viradoEsquerda, atirando, visivel;
+  int sprite, sprite_linha, altura, largura;
+  bool vivo, andando, pulando, viradoEsquerda, atirando, visivel;
   
   SDL_Texture *textura;
 } Personagem;

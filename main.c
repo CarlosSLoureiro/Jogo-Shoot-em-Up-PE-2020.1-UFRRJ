@@ -20,7 +20,7 @@
 
 #define MAX_TIROS 100
 #define MAX_BOLHAS 10
-#define INTERVALO_BOLHAS 4
+#define INTERVALO_BOLHAS 3
 
 
 /* Define as variaveis do jogo */
@@ -63,16 +63,17 @@ int main(int argc, char *argv[]) {
   //Define valores iniciais
   protagonista.x = 50;
   protagonista.y = 0;
-  protagonista.escala = 2;
-  protagonista.sprite = 4;  
+  protagonista.altura = (40 * 3);
+  protagonista.largura = (43 * 3);
+  protagonista.sprite = 0;
+  protagonista.sprite_linha = 0;
   protagonista.vivo = true;
   protagonista.visivel = true;
   protagonista.viradoEsquerda = false;
   
-  inimigo.x = 250;
-  inimigo.y = 100;
-  inimigo.escala = 2;
-  inimigo.sprite = 4;
+  inimigo.x = 1100;
+  inimigo.y = 560;
+  inimigo.sprite = 0;
   inimigo.viradoEsquerda = true;
   inimigo.vivo = true;
   inimigo.visivel = true;
@@ -192,13 +193,13 @@ void adicionar_bolha_aleatoria() {
   if (indices >= 0) {
     int i = indices;
     bolhas[i] = malloc(sizeof(Bolha));
-    bolhas[i]->velocidade = obter_numero_aleatorio(1, 20) / 5;
+    bolhas[i]->velocidade = obter_numero_aleatorio(5, 20) / 5;
     bolhas[i]->tamanho = obter_numero_aleatorio(50, 100);
     bolhas[i]->base = bolhas[i]->x = obter_numero_aleatorio(0, (LARGURA - (bolhas[i]->tamanho * 2)));
     bolhas[i]->inverter = false;
     bolhas[i]->y = ALTURA;
   } else {
-    printf("sem bolhas!!\n");
+    printf("Não tem bolhas\n");
   }
 }
 
@@ -265,6 +266,64 @@ void remover_tiros(int i) {
 }
 
 
+/* funções de física personagem */
+
+void protagonista_fisica(Personagem *personagem, const Uint8 *estado) {
+  if (estado[SDL_SCANCODE_LEFT]) {
+    personagem_andar(personagem, true);
+  } else if (estado[SDL_SCANCODE_RIGHT]) {
+    personagem_andar(personagem, false);
+  } else if (!personagem->pulando) {
+    personagem_parado(personagem);
+  }
+
+  if (estado[SDL_SCANCODE_SPACE]) {
+    if (tempoGlobal % 6 == 0) {
+      if (!personagem->viradoEsquerda) {
+        adicionar_tiro(personagem->x+70, personagem->y+40, 10); 
+      } else {
+        adicionar_tiro(personagem->x, personagem->y+40, -10);
+      }
+    }
+    personagem->atirando = true;
+  } else {
+    personagem->atirando = false;
+  }
+
+  if (estado[SDL_SCANCODE_UP] && !personagem->pulando) {
+    personagem->pulando = true;
+    personagem->sprite = 0;
+    personagem->dy = -8;
+  }
+
+  if (personagem->pulando) {
+    personagem->sprite_linha = 40;
+    if (tempoGlobal % 6 == 0 && personagem->sprite < 5) {
+        personagem->sprite++;
+    }
+  } else {
+    personagem->sprite_linha = 0;
+    //personagem->sprite = 0;
+  }
+}
+
+void personagem_andar(Personagem *personagem, bool esquerda) {
+  personagem->x += (esquerda ? -4 : 4);
+  personagem->andando = true;
+  personagem->viradoEsquerda = esquerda;
+  
+  if (tempoGlobal % 6 == 0) {
+    if (!personagem->pulando) {
+      personagem->sprite++;
+      personagem->sprite %= 8;
+    } 
+  }
+}
+
+void personagem_parado(Personagem *personagem) {
+  personagem->sprite = 0;
+  personagem->andando = false;
+}
 /* Função para processar os eventos do jogador */
 
 bool processar_eventos() {
@@ -299,57 +358,7 @@ bool processar_eventos() {
   }
   
   const Uint8 *estado = SDL_GetKeyboardState(NULL);
-
-  if (!protagonista.atirando) {
-
-    if (estado[SDL_SCANCODE_LEFT]) {
-
-      protagonista.x -= 3;
-      protagonista.andando = true;
-      protagonista.viradoEsquerda = true;
-    
-      if (tempoGlobal % 6 == 0) {
-        protagonista.sprite++;
-        protagonista.sprite %= 4;  
-      }
-
-    } else if (estado[SDL_SCANCODE_RIGHT]) {
-      protagonista.x += 3;
-      protagonista.andando = true;
-      protagonista.viradoEsquerda = false;
-     
-      if (tempoGlobal % 6 == 0) {
-        protagonista.sprite++;
-        protagonista.sprite %= 4;  
-      }
-
-    } else {
-      protagonista.andando = false;
-      protagonista.sprite = 4;
-    }
-  }
-
-  if (!protagonista.andando) {
-    if (estado[SDL_SCANCODE_SPACE]) {
-      if (tempoGlobal % 6 == 0) {
-        protagonista.sprite = ((protagonista.sprite == 4) ? 5 : 4);
-        if (!protagonista.viradoEsquerda) {
-          adicionar_tiro(protagonista.x+70, protagonista.y+40, 10); 
-        } else {
-          adicionar_tiro(protagonista.x, protagonista.y+40, -10);
-        }
-      }  
-  
-      protagonista.atirando = true;
-    } else {
-      protagonista.sprite = 4;  
-      protagonista.atirando = false;
-    }
-  }
-  
-  if (estado[SDL_SCANCODE_UP] && !protagonista.dy) {
-    protagonista.dy = -8;
-  }
+  protagonista_fisica(&protagonista, estado);
   if (estado[SDL_SCANCODE_DOWN]) {
     //protagonista.y += 10;
   }
@@ -379,15 +388,15 @@ void renderizar() {
 
   //Copia o personagem protagonista para o renderer de acordo com o sprite atual
   if (protagonista.visivel) {
-    SDL_Rect srcRect = { 40*protagonista.sprite, 0, 40, 50 };
-    SDL_Rect rect = { protagonista.x, protagonista.y, 40*protagonista.escala, 50*protagonista.escala };
+    SDL_Rect srcRect = { 43*protagonista.sprite, protagonista.sprite_linha, 43, 40 };
+    SDL_Rect rect = { protagonista.x, protagonista.y, protagonista.largura, protagonista.altura };
     SDL_RenderCopyEx(renderer, protagonista.textura, &srcRect, &rect, 0, NULL, protagonista.viradoEsquerda);
   }
 
   //Copia o personagem inimigo para o renderer de acordo com o sprite atual
   if (inimigo.visivel) {
-    SDL_Rect eSrcRect = { 40*inimigo.sprite, 0, 40, 50 };
-    SDL_Rect eRect = { inimigo.x, inimigo.y, 40*inimigo.escala, 50*inimigo.escala };
+    SDL_Rect eSrcRect = { 52*inimigo.sprite, 0, 52, 81 };
+    SDL_Rect eRect = { inimigo.x, inimigo.y, 52 * 2, 81 * 2 };
     SDL_RenderCopyEx(renderer, inimigo.textura, &eSrcRect, &eRect, 0, NULL, inimigo.viradoEsquerda);
   }
 
@@ -406,10 +415,11 @@ void verificar_fisica() {
 
   for (int i = 0; i < LIMITE_DE_OBJETOS_NO_MAPA; i++) if (mapa.objetos[i]) {
 
-    int altura_do_personagem = 50 * protagonista.escala;
+    int altura_do_personagem = protagonista.altura;
     if (mapa.objetos[i]->solido && (protagonista.y > (mapa.objetos[i]->y + mapa.objetos[i]->altura - altura_do_personagem))) {
       protagonista.y = (mapa.objetos[i]->y + mapa.objetos[i]->altura) - altura_do_personagem;
       protagonista.dy = 0;
+      protagonista.pulando = false;
       break;
     }
     
@@ -424,7 +434,7 @@ void verificar_fisica() {
     tiros[i]->x += tiros[i]->dx;
     
     //Verifica se o tiro acertou o inimigo
-    if (tiros[i]->x > inimigo.x && tiros[i]->x < inimigo.x+40 && tiros[i]->y > inimigo.y && tiros[i]->y < inimigo.y+50) {
+    if (tiros[i]->x > inimigo.x && tiros[i]->x < inimigo.x+(52 * 2) && tiros[i]->y > inimigo.y && tiros[i]->y < inimigo.y+(81 * 2)) {
       inimigo.vivo = false;
     }
     
@@ -435,13 +445,13 @@ void verificar_fisica() {
   }
   
   if ((!inimigo.vivo) && tempoGlobal % 6 == 0) {
-    if (inimigo.sprite < 6) {
-      inimigo.sprite = 6;
-    } else if (inimigo.sprite >= 6) {
+    if (inimigo.sprite < 1) {
+      inimigo.sprite = 1;
+    } else if (inimigo.sprite >= 1) {
       inimigo.sprite++;
-      if (inimigo.sprite > 7) {
+      if (inimigo.sprite > 2) {
         inimigo.visivel = false;
-        inimigo.sprite = 7;      
+        inimigo.sprite = 2;      
       }
     }
   }
@@ -451,7 +461,7 @@ void verificar_fisica() {
 
 void carregar_assets() {
   //Carrega imagem do protagonista
-  SDL_Surface *imagem = IMG_Load("assets/imagens/protagonista-1.png");
+  SDL_Surface *imagem = IMG_Load("assets/imagens/bob.png");
   protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
   SDL_FreeSurface(imagem);
 
