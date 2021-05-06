@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
   inimigo.visivel = true;
   
   //Define a window e o renderer
-  window = SDL_CreateWindow("Jogo Shoot em Up", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
+  window = SDL_CreateWindow("Joguinho do Bob Esponja!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
   carregar_assets();
@@ -122,6 +122,7 @@ int main(int argc, char *argv[]) {
 
   //Remove as texturas
   SDL_DestroyTexture(protagonista.textura);
+  SDL_DestroyTexture(texturas.arma);
   SDL_DestroyTexture(texturas.mapa);
   SDL_DestroyTexture(texturas.tiro);
   SDL_DestroyTexture(texturas.bolha);
@@ -280,9 +281,9 @@ void protagonista_fisica(Personagem *personagem, const Uint8 *estado) {
   if (estado[SDL_SCANCODE_SPACE]) {
     if (tempoGlobal % 6 == 0) {
       if (!personagem->viradoEsquerda) {
-        adicionar_tiro(personagem->x+70, personagem->y+40, 10); 
+        adicionar_tiro(personagem->x + 120, personagem->y + 52, 10); 
       } else {
-        adicionar_tiro(personagem->x, personagem->y+40, -10);
+        adicionar_tiro(personagem->x, personagem->y + 52, -10);
       }
     }
     personagem->atirando = true;
@@ -311,7 +312,7 @@ void personagem_andar(Personagem *personagem, bool esquerda) {
   personagem->x += (esquerda ? -4 : 4);
   personagem->andando = true;
   personagem->viradoEsquerda = esquerda;
-  
+
   if (tempoGlobal % 6 == 0) {
     if (!personagem->pulando) {
       personagem->sprite++;
@@ -388,6 +389,10 @@ void renderizar() {
 
   //Copia o personagem protagonista para o renderer de acordo com o sprite atual
   if (protagonista.visivel) {
+    //adiciona a arma do protagonista
+    SDL_Rect rect2 = { (protagonista.x + (protagonista.viradoEsquerda ? 0 : (protagonista.largura * 0.65))) - ((protagonista.atirando && (tempoGlobal % 2)) ? 2 : 0), protagonista.y + (protagonista.altura / 2.18) - ((protagonista.pulando) ? 12 : (((protagonista.sprite % 3) && protagonista.andando) ? 3 : 0)), 50, 25 };
+    SDL_RenderCopyEx(renderer, texturas.arma, NULL, &rect2, 0, NULL, protagonista.viradoEsquerda);
+
     SDL_Rect srcRect = { 43*protagonista.sprite, protagonista.sprite_linha, 43, 40 };
     SDL_Rect rect = { protagonista.x, protagonista.y, protagonista.largura, protagonista.altura };
     SDL_RenderCopyEx(renderer, protagonista.textura, &srcRect, &rect, 0, NULL, protagonista.viradoEsquerda);
@@ -463,6 +468,11 @@ void carregar_assets() {
   //Carrega imagem do protagonista
   SDL_Surface *imagem = IMG_Load("assets/imagens/bob.png");
   protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem da arma do protagonista
+  imagem = IMG_Load("assets/imagens/arma.png");
+  texturas.arma = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
 
   //Carrega imagem do inimigo

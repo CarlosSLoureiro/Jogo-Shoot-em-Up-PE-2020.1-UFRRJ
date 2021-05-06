@@ -27,7 +27,7 @@ typedef struct {
 } Bolha;
 
 typedef struct {
-    float x, y, altura, largura;;
+    float x, y, altura, largura;
     bool solido, acima;
 } Objeto;
 
@@ -40,6 +40,7 @@ typedef struct {
   SDL_Texture *mapa;
   SDL_Texture *tiro;
   SDL_Texture *bolha;
+  SDL_Texture *arma;
 } Texturas;
 
 typedef struct {
