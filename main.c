@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mixer.h>
+#include <SDL2/SDL_ttf.h>
 #include <time.h>
 #include <string.h>
 #include <stdbool.h>
@@ -26,13 +27,15 @@
 /* Define as variaveis do jogo */
 
 SDL_Window *window;
+TTF_Font *font;
 SDL_Renderer *renderer;
 
 long long tempoGlobal = 0;
 long long tempoJogando = 0;
+int CoolDown = 0;
 char data[64];
 
-bool jogando = true;
+Menu menu;
 
 Texturas texturas;
 Sons sons;
@@ -44,13 +47,9 @@ Mapa mapa;
 Objeto chao;
 
 int main(int argc, char *argv[]) {
-  //Inicia SDL2
-  SDL_Init(SDL_INIT_VIDEO);
-
-  //Inicia audio do SDL2
-  SDL_Init(SDL_INIT_AUDIO);
-  Mix_Init(MIX_INIT_OGG);
-  Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 640);
+  iniciar_SDL2();
+  carregar_assets();
+  criar_menu();
 
   chao.altura = 1;
   chao.largura = LARGURA;
@@ -77,12 +76,7 @@ int main(int argc, char *argv[]) {
   inimigo.viradoEsquerda = true;
   inimigo.vivo = true;
   inimigo.visivel = true;
-  
-  //Define a window e o renderer
-  window = SDL_CreateWindow("Joguinho do Bob Esponja!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
-  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
-  carregar_assets();
   
   bool finalizado = false;
   
@@ -95,7 +89,9 @@ int main(int argc, char *argv[]) {
     finalizado = processar_eventos();
     
     //Atualiza a fisica do mapa
-    verificar_fisica();
+    if (!menu.aberto) {
+      verificar_fisica();
+    } 
     
     //Atualiza o render
     renderizar();
@@ -110,18 +106,55 @@ int main(int argc, char *argv[]) {
     if (diferenca < MS_POR_FRAME) {
       SDL_Delay(MS_POR_FRAME - diferenca); //Define o delay de acordo com a diferença
     }
+
+    if (CoolDown > 0) {
+      CoolDown--;
+    }
+    tempoGlobal++;
   } while (!finalizado);
 
-  
+  finalizar_SDL2();
+  return 0;
+}
+
+/* Iniciar o SDL2 */
+
+void iniciar_SDL2() {
+  //Inicia o video do SDL2
+  SDL_Init(SDL_INIT_VIDEO);
+
+  //Inicia audio do SDL2
+  SDL_Init(SDL_INIT_AUDIO);
+  Mix_Init(MIX_INIT_OGG);
+  Mix_OpenAudio(22050, AUDIO_S16SYS, 2, 640);
+
+  //Inicia a biblioteca de texto do SDL2
+  TTF_Init();
+
+  //Define a window e o renderer
+  window = SDL_CreateWindow("Joguinho do Bob Esponja!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
+  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+}
+
+/* Finaliza o SDL2 */
+void finalizar_SDL2() {
   SDL_DestroyWindow(window);
   SDL_DestroyRenderer(renderer);
 
+  //Remove a font
+  TTF_CloseFont(font);
+  TTF_Quit();
+
   //Remove os sons
-  Mix_FreeMusic(sons.mapa);
+  Mix_FreeMusic(sons.menu);
+  Mix_FreeMusic(sons.jogando);
   Mix_FreeChunk(sons.tiro);
 
   //Remove as texturas
   SDL_DestroyTexture(protagonista.textura);
+  SDL_DestroyTexture(texturas.lula_dancando);
+  SDL_DestroyTexture(texturas.mao);
+  SDL_DestroyTexture(texturas.menu);
   SDL_DestroyTexture(texturas.arma);
   SDL_DestroyTexture(texturas.mapa);
   SDL_DestroyTexture(texturas.tiro);
@@ -134,9 +167,7 @@ int main(int argc, char *argv[]) {
   }
   
   SDL_Quit();
-  return 0;
 }
-
 
 /* Atualiza temporizadores */
 
@@ -162,7 +193,7 @@ void atualizar_temporizadores() {
     atualizar_intervalos(tempo);
     
     //Conta o tempo de jogando
-    if (jogando) {
+    if (!menu.aberto) {
       tempoJogando++;
     } 
   }
@@ -178,6 +209,120 @@ void atualizar_intervalos(int tempo) {
   }
 }
 
+
+/* Game Menu */
+
+void criar_menu() {
+  menu.aberto = true;
+  menu.selecionado = 0;
+  menu.tamanho = 0;
+  
+  criar_menu_item("Jogar!");
+  criar_menu_item("Historia");
+  criar_menu_item("Como Jogar");
+  criar_menu_item("Ranking");
+  criar_menu_item("Sair");
+}
+
+void criar_menu_item(char *str) {
+  MenuItem item;
+  item.texto = str;
+
+  menu.items[menu.tamanho] = item;
+  menu.tamanho++;
+}
+
+void renderizar_menu() {
+  if (menu.aberto) {
+    
+    int distancia = 20;
+    int somatorio = 0;
+    int y_selecionado = 0;
+
+    for (int i = 0; i < menu.tamanho; i++) {
+      Texto * texto = obter_texto(menu.items[i].texto, 0xDDFF00);
+      SDL_Rect rect;
+      
+      rect.x = 790;
+      rect.y = 100;
+
+      rect.w=texto->largura;
+      rect.h=texto->altura;
+
+      rect.y += somatorio + ((i > 0) ? (distancia * i) : 0);
+
+      if (menu.selecionado == i) {
+        y_selecionado = rect.y;
+      }
+
+      somatorio += rect.h;
+
+      //SDL_RenderDrawRect(renderer, &rect);
+      SDL_RenderCopy(renderer, texto->textura, NULL, &rect);
+      SDL_DestroyTexture(texto->textura);
+    }
+
+    renderizar_cursor_menu(y_selecionado + 5);
+  }
+}
+
+void renderizar_cursor_menu(int y) {
+  SDL_Rect srcRect = { 0, 0, 94, 82 };
+  SDL_Rect rect = { 680, y, 94, 82 };
+  SDL_RenderCopyEx(renderer, texturas.mao, &srcRect, &rect, 0, NULL, 0);
+}
+
+void renderizar_lula_e_bob_dancando() {
+  //total de sprites: 52, delay: 4
+  SDL_Rect srcRect = { 270 * round((tempoGlobal % (52 * 4)) / 4), 0, 270, 270 };
+  SDL_Rect rect = { 100, 70, 270 * 2, 270 * 2 };
+  SDL_RenderCopyEx(renderer, texturas.lula_dancando, &srcRect, &rect, 0, NULL, 0);
+
+  //total de sprites: 17, delay: 4
+  SDL_Rect srcRect2 = { 500 * round((tempoGlobal % (17 * 4)) / 4), 0, 500, 295 };
+  SDL_Rect rect2 = { 820, 440, 500, 295 };
+  SDL_RenderCopyEx(renderer, texturas.bob_dancando, &srcRect2, &rect2, 0, NULL, 0);
+}
+
+bool logica_do_menu(const Uint8 *estado) {
+  bool finalizado = false;
+  if (!CoolDown) {
+    if (estado[SDL_SCANCODE_DOWN]) {
+      menu.selecionado++;
+      if (menu.selecionado >= menu.tamanho) {
+        menu.selecionado = 0;
+      }
+      adicionar_cooldown();
+    } else if (estado[SDL_SCANCODE_UP]) {
+      menu.selecionado--;
+      if (menu.selecionado < 0) {
+        menu.selecionado = (menu.tamanho - 1);
+      }
+      adicionar_cooldown();
+    } else if (estado[SDL_SCANCODE_RIGHT]) {
+      adicionar_cooldown();
+    } else if (estado[SDL_SCANCODE_LEFT]) {
+      adicionar_cooldown();
+    } else if (estado[SDL_SCANCODE_RETURN]) {
+      switch (menu.selecionado) {
+          case 0: //Jogar!
+            menu.aberto = false;
+            Mix_PlayMusic(sons.jogando, 1);
+            break;
+          case 4: //Sair
+            finalizado = true;
+            break;
+      }
+      adicionar_cooldown();
+    }
+  }
+
+  return finalizado;
+}
+
+void adicionar_cooldown() {
+  CoolDown = 10;
+}
 
 /* funções para: adicionar/renderizar/remover bolhas na tela */
 
@@ -269,7 +414,7 @@ void remover_tiros(int i) {
 
 /* funções de física personagem */
 
-void protagonista_fisica(Personagem *personagem, const Uint8 *estado) {
+void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
   if (estado[SDL_SCANCODE_LEFT]) {
     personagem_andar(personagem, true);
   } else if (estado[SDL_SCANCODE_RIGHT]) {
@@ -294,7 +439,7 @@ void protagonista_fisica(Personagem *personagem, const Uint8 *estado) {
   if (estado[SDL_SCANCODE_UP] && !personagem->pulando) {
     personagem->pulando = true;
     personagem->sprite = 0;
-    personagem->dy = -8;
+    personagem->dy = -20;
   }
 
   if (personagem->pulando) {
@@ -347,7 +492,15 @@ bool processar_eventos() {
       {
         switch (event.key.keysym.sym) {
           case SDLK_ESCAPE:
-            finalizado = true;
+            if (!CoolDown) {
+              if (menu.aberto) {
+                menu.selecionado = 4;
+              } else {
+                menu.aberto = true;
+                Mix_PlayMusic(sons.menu, 1);
+              }
+              adicionar_cooldown();
+            }
           break;
         }
       }
@@ -359,19 +512,17 @@ bool processar_eventos() {
   }
   
   const Uint8 *estado = SDL_GetKeyboardState(NULL);
-  protagonista_fisica(&protagonista, estado);
-  if (estado[SDL_SCANCODE_DOWN]) {
-    //protagonista.y += 10;
+  
+  if (!menu.aberto) {
+    logica_do_jogo(&protagonista, estado);
+  } else {
+    finalizado = logica_do_menu(estado);
   }
   
   return finalizado;
 }
 
 void renderizar() {
-  if (!Mix_PlayingMusic()) {
-    Mix_PlayMusic(sons.mapa, 1);
-  }
-
   //Define a cor do desenho para azul
   SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
   
@@ -381,34 +532,53 @@ void renderizar() {
   //Define a cor do desenho para branco
   SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
   
-  //Copia o mapa para o renderer
-  SDL_RenderCopy(renderer, texturas.mapa, NULL, NULL);
+  if (menu.aberto) {
+    if (!Mix_PlayingMusic()) {
+      Mix_PlayMusic(sons.menu, 1);
+    }
 
-  //Remove as bolhas aleatorias da tela
-  remover_bolhas_aleatorias();
+    SDL_RenderCopy(renderer, texturas.menu, NULL, NULL);
 
-  //Copia o personagem protagonista para o renderer de acordo com o sprite atual
-  if (protagonista.visivel) {
-    //adiciona a arma do protagonista
-    SDL_Rect rect2 = { (protagonista.x + (protagonista.viradoEsquerda ? 0 : (protagonista.largura * 0.65))) - ((protagonista.atirando && (tempoGlobal % 2)) ? 2 : 0), protagonista.y + (protagonista.altura / 2.18) - ((protagonista.pulando) ? 12 : (((protagonista.sprite % 3) && protagonista.andando) ? 3 : 0)), 50, 25 };
-    SDL_RenderCopyEx(renderer, texturas.arma, NULL, &rect2, 0, NULL, protagonista.viradoEsquerda);
+    //Renderizar menu
+    renderizar_menu();
+    renderizar_lula_e_bob_dancando();
+    
+  } else {
+    if (!Mix_PlayingMusic()) {
+      Mix_PlayMusic(sons.jogando, 1);
+    }
 
-    SDL_Rect srcRect = { 43*protagonista.sprite, protagonista.sprite_linha, 43, 40 };
-    SDL_Rect rect = { protagonista.x, protagonista.y, protagonista.largura, protagonista.altura };
-    SDL_RenderCopyEx(renderer, protagonista.textura, &srcRect, &rect, 0, NULL, protagonista.viradoEsquerda);
-  }
+    //Copia o mapa para o renderer
+    SDL_RenderCopy(renderer, texturas.mapa, NULL, NULL);
 
-  //Copia o personagem inimigo para o renderer de acordo com o sprite atual
-  if (inimigo.visivel) {
-    SDL_Rect eSrcRect = { 52*inimigo.sprite, 0, 52, 81 };
-    SDL_Rect eRect = { inimigo.x, inimigo.y, 52 * 2, 81 * 2 };
-    SDL_RenderCopyEx(renderer, inimigo.textura, &eSrcRect, &eRect, 0, NULL, inimigo.viradoEsquerda);
+    //Copia o personagem protagonista para o renderer de acordo com o sprite atual
+    if (protagonista.visivel) {
+      //adiciona a arma do protagonista
+      SDL_Rect rect2 = { (protagonista.x + (protagonista.viradoEsquerda ? 0 : (protagonista.largura * 0.65))) - ((protagonista.atirando && (tempoGlobal % 2)) ? 2 : 0), protagonista.y + (protagonista.altura / 2.18) - ((protagonista.pulando) ? 12 : (((protagonista.sprite % 3) && protagonista.andando) ? 3 : 0)), 50, 25 };
+      SDL_RenderCopyEx(renderer, texturas.arma, NULL, &rect2, 0, NULL, protagonista.viradoEsquerda);
+
+      SDL_Rect srcRect = { 43*protagonista.sprite, protagonista.sprite_linha, 43, 40 };
+      SDL_Rect rect = { protagonista.x, protagonista.y, protagonista.largura, protagonista.altura };
+      SDL_RenderCopyEx(renderer, protagonista.textura, &srcRect, &rect, 0, NULL, protagonista.viradoEsquerda);
+    }
+
+    //Copia o personagem inimigo para o renderer de acordo com o sprite atual
+    if (inimigo.visivel) {
+      SDL_Rect eSrcRect = { 52*inimigo.sprite, 0, 52, 81 };
+      SDL_Rect eRect = { inimigo.x, inimigo.y, 52 * 2, 81 * 2 };
+      SDL_RenderCopyEx(renderer, inimigo.textura, &eSrcRect, &eRect, 0, NULL, inimigo.viradoEsquerda);
+    }
+
+    //Renderia os tiros
+    renderizar_tiros();
   }
 
   //Atualiza temporizadores e renderiza eventos de invertvalo
   atualizar_temporizadores();
   renderizar_bolhas_aleatorias();
-  renderizar_tiros();
+
+  //Remove as bolhas aleatorias da tela
+  remover_bolhas_aleatorias();
   
   //Exibe na tela o que foi desenhado no renderer
   SDL_RenderPresent(renderer);
@@ -460,14 +630,35 @@ void verificar_fisica() {
       }
     }
   }
-  
-  tempoGlobal++;
 }
 
 void carregar_assets() {
+  //Carrega a font dos textos
+  font = TTF_OpenFont("assets/fontes/KrabbyPatty.ttf", 80);
+
   //Carrega imagem do protagonista
   SDL_Surface *imagem = IMG_Load("assets/imagens/bob.png");
   protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
+  SDL_FreeSurface(imagem);
+
+  //Carrega a imagem de fundo do menu  
+  imagem = IMG_Load("assets/imagens/menu.png");
+  texturas.menu = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem da mao apontando para o item do menu
+  imagem = IMG_Load("assets/imagens/mao-apontando.png");
+  texturas.mao = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem do lula molusco dancando (menu)
+  imagem = IMG_Load("assets/imagens/lula-molusco-dancando.png");
+  texturas.lula_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem do lula molusco dancando (menu)
+  imagem = IMG_Load("assets/imagens/bob-dancando.png");
+  texturas.bob_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
 
   //Carrega imagem da arma do protagonista
@@ -481,7 +672,7 @@ void carregar_assets() {
   SDL_FreeSurface(imagem);
 
   //Carrega o mapa  
-  imagem = IMG_Load("assets/imagens/fundo-menu.jpeg");
+  imagem = IMG_Load("assets/imagens/mapa.png");
   texturas.mapa = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
 
@@ -496,8 +687,33 @@ void carregar_assets() {
   SDL_FreeSurface(imagem);
 
   //Carrega as Musicas e Efeitos
-  sons.mapa = Mix_LoadMUS("assets/sons/bob1.wav");
+  sons.menu = Mix_LoadMUS("assets/sons/menu.wav");
+  sons.jogando = Mix_LoadMUS("assets/sons/jogando.wav");
   sons.tiro = Mix_LoadWAV("assets/sons/tiro.wav");
+}
+
+Texto * obter_texto(char *msg, int hex) {
+  Texto * texto = malloc(sizeof(Texto));
+
+  RGB cor_rgb = obter_cor(hex);
+
+  SDL_Color cor = {cor_rgb.r, cor_rgb.g, cor_rgb.b};
+  SDL_Surface * texto_renderizado = TTF_RenderText_Solid( font, msg, cor);
+  texto->textura = SDL_CreateTextureFromSurface(renderer, texto_renderizado);
+  SDL_FreeSurface(texto_renderizado);
+  SDL_QueryTexture(texto->textura, NULL, NULL, &(texto->largura), &(texto->altura));
+
+  return texto;
+}
+
+RGB obter_cor(int hex) {
+  RGB cor;
+
+  cor.r = ((hex >> 16) & 0xFF);
+  cor.g = ((hex >> 8) & 0xFF);
+  cor.b = ((hex) & 0xFF);
+
+  return cor; 
 }
 
 int obter_numero_aleatorio(int minimo, int maximo) {
