@@ -9,6 +9,8 @@
 #include "estrutura.h"
 #include "funcoes.h"
 
+#define NOME_DO_JOGO "Joguinho do Bob Esponja!"
+
 /* Define as constantes de configurações da janela do jogo */
 
 #define FPS 60
@@ -115,7 +117,6 @@ int main(int argc, char *argv[]) {
 }
 
 /* Iniciar o SDL2 */
-
 void iniciar_SDL2() {
   //Inicia o video do SDL2
   SDL_Init(SDL_INIT_VIDEO);
@@ -129,8 +130,74 @@ void iniciar_SDL2() {
   TTF_Init();
 
   //Define a window e o renderer
-  window = SDL_CreateWindow("Joguinho do Bob Esponja!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
+  window = SDL_CreateWindow(NOME_DO_JOGO, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, LARGURA, ALTURA, 0);
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+}
+
+/* Carrega o assets do jogo */
+void carregar_assets() {
+  //Carrega a font dos textos
+  font = TTF_OpenFont("assets/fontes/KrabbyPatty.ttf", 80);
+
+  //Carrega imagem do protagonista
+  SDL_Surface *imagem = IMG_Load("assets/imagens/bob.png");
+  protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
+  SDL_FreeSurface(imagem);
+
+  //Carrega a imagem de fundo do menu  
+  imagem = IMG_Load("assets/imagens/menu.png");
+  texturas.menu = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem da mao apontando para o item do menu
+  imagem = IMG_Load("assets/imagens/mao-apontando.png");
+  texturas.mao = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem do lula molusco dancando (menu)
+  imagem = IMG_Load("assets/imagens/lula-molusco-dancando.png");
+  texturas.lula_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem do lula molusco dancando (menu)
+  imagem = IMG_Load("assets/imagens/bob-dancando.png");
+  texturas.bob_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem da arma do protagonista
+  imagem = IMG_Load("assets/imagens/arma.png");
+  texturas.arma = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega imagem do inimigo
+  imagem = IMG_Load("assets/imagens/agua-viva.png");
+  texturas.inimigo = SDL_CreateTextureFromSurface(renderer, imagem);  
+  SDL_FreeSurface(imagem);
+
+  //Carrega o mapa  
+  imagem = IMG_Load("assets/imagens/mapa.png");
+  texturas.mapa = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega o tiro  
+  imagem = IMG_Load("assets/imagens/tiro.png");
+  texturas.tiro = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+  
+  //Carrega a bolha
+  imagem = IMG_Load("assets/imagens/bolha.png");
+  texturas.bolha = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega a bolha de morte
+  imagem = IMG_Load("assets/imagens/bolhas.png");
+  texturas.bolhas = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega as Musicas e Efeitos
+  sons.menu = Mix_LoadMUS("assets/sons/menu.wav");
+  sons.jogando = Mix_LoadMUS("assets/sons/jogando.wav");
+  sons.tiro = Mix_LoadWAV("assets/sons/tiro.wav");
 }
 
 /* Finaliza o SDL2 */
@@ -212,7 +279,7 @@ void atualizar_intervalos(int tempo) {
 }
 
 
-/* Game Menu */
+/* Funçoes do menu do jogo */
 
 void criar_menu() {
   menu.aberto = true;
@@ -259,7 +326,7 @@ void renderizar_menu() {
 
       somatorio += rect.h;
 
-      //SDL_RenderDrawRect(renderer, &rect);
+      //SDL_RenderDrawRect(renderer, &rect); //Desenha bordas na textura
       SDL_RenderCopy(renderer, texto->textura, NULL, &rect);
       SDL_DestroyTexture(texto->textura);
     }
@@ -322,9 +389,6 @@ bool logica_do_menu(const Uint8 *estado) {
   return finalizado;
 }
 
-void adicionar_cooldown(int i) {
-  CoolDown = i;
-}
 
 /* funções para: adicionar/renderizar/remover bolhas na tela */
 
@@ -346,8 +410,6 @@ void adicionar_bolha_aleatoria() {
     bolhas[i]->base = bolhas[i]->x = obter_numero_aleatorio(0, (LARGURA - (bolhas[i]->tamanho * 2)));
     bolhas[i]->inverter = false;
     bolhas[i]->y = ALTURA;
-  } else {
-    printf("Não tem bolhas\n");
   }
 }
 
@@ -414,7 +476,7 @@ void remover_tiros(int i) {
 }
 
 
-/* funções para: adicionar/renderizar/remover inimigos no mapa */
+/* funções para: adicionar/mover/renderizar/remover inimigos aleatórios no mapa */
 
 void adicionar_inimigo_aleatorio() {
   int indices = -1;
@@ -452,21 +514,6 @@ void mover_inimigos_aleatorio() {
         delta_menos = (inimigos[i]->y - INIMIGOS_VELOCIDADE);
 
         inimigos[i]->y = ((delta_mais > protagonista.y && delta_menos < protagonista.y) ? protagonista.y : ((delta_mais > protagonista.y) ? delta_menos : delta_mais));
-
-        //inimigos[i]->x += (((inimigos[i]->x + INIMIGOS_VELOCIDADE) > protagonista.x) ? (INIMIGOS_VELOCIDADE * -1) : INIMIGOS_VELOCIDADE);
-        //inimigos[i]->y += (((inimigos[i]->y + INIMIGOS_VELOCIDADE) > protagonista.y) ? (INIMIGOS_VELOCIDADE * -1) : INIMIGOS_VELOCIDADE);
-        /*
-        if (inimigos[i]->x > protagonista.x) {
-          inimigos[i]->x--;
-        } else{
-          inimigos[i]->x++;
-        }
-        if (inimigos[i]->y > protagonista.y) {
-          inimigos[i]->y--;
-        } else {
-          inimigos[i]->y++;
-        }
-        */
       }
     }
   }
@@ -515,7 +562,7 @@ void remover_inimigos_aleatorio() {
 }
 
 
-/* funções de física personagem */
+/* funções de física e lógica do jogo */
 
 void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
   if (estado[SDL_SCANCODE_LEFT]) {
@@ -553,7 +600,6 @@ void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
     }
   } else {
     personagem->sprite_linha = 0;
-    //personagem->sprite = 0;
   }
 }
 
@@ -574,6 +620,8 @@ void personagem_parado(Personagem *personagem) {
   personagem->sprite = 0;
   personagem->andando = false;
 }
+
+
 /* Função para processar os eventos do jogador */
 
 bool processar_eventos() {
@@ -597,11 +645,13 @@ bool processar_eventos() {
         switch (event.key.keysym.sym) {
           case SDLK_ESCAPE:
             if (!CoolDown) {
-              if (menu.aberto) {
-                menu.selecionado = 4;
-              } else {
+              if (!menu.aberto) {
+                //Exibe o menu caso ele não esteja aberto
                 menu.aberto = true;
                 Mix_PlayMusic(sons.menu, 1);
+              } else {
+                //caso o meno ja esteja aberto, seleciona a opção "Sair" no menu
+                menu.selecionado = 4;
               }
               adicionar_cooldown(10);
             }
@@ -728,71 +778,7 @@ void verificar_fisica() {
   }
 }
 
-void carregar_assets() {
-  //Carrega a font dos textos
-  font = TTF_OpenFont("assets/fontes/KrabbyPatty.ttf", 80);
-
-  //Carrega imagem do protagonista
-  SDL_Surface *imagem = IMG_Load("assets/imagens/bob.png");
-  protagonista.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
-  SDL_FreeSurface(imagem);
-
-  //Carrega a imagem de fundo do menu  
-  imagem = IMG_Load("assets/imagens/menu.png");
-  texturas.menu = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega imagem da mao apontando para o item do menu
-  imagem = IMG_Load("assets/imagens/mao-apontando.png");
-  texturas.mao = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega imagem do lula molusco dancando (menu)
-  imagem = IMG_Load("assets/imagens/lula-molusco-dancando.png");
-  texturas.lula_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega imagem do lula molusco dancando (menu)
-  imagem = IMG_Load("assets/imagens/bob-dancando.png");
-  texturas.bob_dancando = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega imagem da arma do protagonista
-  imagem = IMG_Load("assets/imagens/arma.png");
-  texturas.arma = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega imagem do inimigo
-  imagem = IMG_Load("assets/imagens/agua-viva.png");
-  texturas.inimigo = SDL_CreateTextureFromSurface(renderer, imagem);  
-  SDL_FreeSurface(imagem);
-
-  //Carrega o mapa  
-  imagem = IMG_Load("assets/imagens/mapa.png");
-  texturas.mapa = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega o tiro  
-  imagem = IMG_Load("assets/imagens/tiro.png");
-  texturas.tiro = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-  
-  //Carrega a bolha
-  imagem = IMG_Load("assets/imagens/bolha.png");
-  texturas.bolha = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega a bolha de morte
-  imagem = IMG_Load("assets/imagens/bolhas.png");
-  texturas.bolhas = SDL_CreateTextureFromSurface(renderer, imagem);
-  SDL_FreeSurface(imagem);
-
-  //Carrega as Musicas e Efeitos
-  sons.menu = Mix_LoadMUS("assets/sons/menu.wav");
-  sons.jogando = Mix_LoadMUS("assets/sons/jogando.wav");
-  sons.tiro = Mix_LoadWAV("assets/sons/tiro.wav");
-}
-
+/* Cria uma estrutura de texto com a textura inserida na estrutura */
 Texto * obter_texto(char *msg, int hex) {
   Texto * texto = malloc(sizeof(Texto));
 
@@ -807,6 +793,7 @@ Texto * obter_texto(char *msg, int hex) {
   return texto;
 }
 
+/* Converte as cores em HEXDECIMAL para RGB */
 RGB obter_cor(int hex) {
   RGB cor;
 
@@ -817,6 +804,12 @@ RGB obter_cor(int hex) {
   return cor; 
 }
 
+/* obtém um número aleatório entre um valor x e y */
 int obter_numero_aleatorio(int minimo, int maximo) {
   return (int) rand()%(maximo-minimo + 1) + minimo;
+}
+
+/* Adiciona um valor ao CoolDown para obter um delay no devido evento a ser maipulado */
+void adicionar_cooldown(int i) {
+  CoolDown = i;
 }

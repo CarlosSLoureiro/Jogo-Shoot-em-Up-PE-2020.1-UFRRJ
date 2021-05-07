@@ -8,6 +8,7 @@
 
 void iniciar_SDL2();
 void finalizar_SDL2();
+void carregar_assets();
 void renderizar();
 void criar_menu();
 void renderizar_cursor_menu(int);
@@ -19,7 +20,6 @@ void adicionar_cooldown(int);
 bool processar_eventos();
 void atualizar_temporizadores();
 void atualizar_intervalos(int);
-void carregar_assets();
 void adicionar_inimigo_aleatorio();
 void renderizar_inimigos_aleatorio();
 void remover_inimigos_aleatorio();
