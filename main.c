@@ -21,6 +21,7 @@
 
 #define MAX_TIROS 100
 #define MAX_BOLHAS 10
+#define MAX_INIMIGOS 10
 #define INTERVALO_BOLHAS 3
 
 
@@ -35,6 +36,10 @@ long long tempoJogando = 0;
 int CoolDown = 0;
 char data[64];
 
+//Valores relativos que deve ser alterados de acordo com o tempo de jogo para dificultar a jogabilidade
+int INIMIGOS_RESPAW = 1; //em segundos
+int INIMIGOS_VELOCIDADE = 5; //em prixels
+
 Menu menu;
 
 Texturas texturas;
@@ -42,7 +47,7 @@ Sons sons;
 Tiro *tiros[MAX_TIROS] = { NULL };
 Bolha *bolhas[MAX_BOLHAS] = { NULL };
 Personagem protagonista;
-Personagem inimigo;
+Personagem *inimigos[MAX_INIMIGOS] = { NULL };
 Mapa mapa;
 Objeto chao;
 
@@ -69,14 +74,6 @@ int main(int argc, char *argv[]) {
   protagonista.vivo = true;
   protagonista.visivel = true;
   protagonista.viradoEsquerda = false;
-  
-  inimigo.x = 1100;
-  inimigo.y = 560;
-  inimigo.sprite = 0;
-  inimigo.viradoEsquerda = true;
-  inimigo.vivo = true;
-  inimigo.visivel = true;
-
   
   bool finalizado = false;
   
@@ -159,7 +156,8 @@ void finalizar_SDL2() {
   SDL_DestroyTexture(texturas.mapa);
   SDL_DestroyTexture(texturas.tiro);
   SDL_DestroyTexture(texturas.bolha);
-  SDL_DestroyTexture(inimigo.textura);
+  SDL_DestroyTexture(texturas.bolhas);
+  SDL_DestroyTexture(texturas.inimigo);
   
   //Remove todos as texturas de tiro
   for(int i = 0; i < MAX_TIROS; i++) {
@@ -204,8 +202,12 @@ void atualizar_temporizadores() {
 
 void atualizar_intervalos(int tempo) {
   //Sobe uma bolha na tela a cada x segundos
-  if ((tempo % INTERVALO_BOLHAS) == 0) {
+  if (!(tempo % INTERVALO_BOLHAS)) {
     adicionar_bolha_aleatoria();
+  }
+
+  if ((!(tempo % INIMIGOS_RESPAW)) && !menu.aberto) {
+    adicionar_inimigo_aleatorio();
   }
 }
 
@@ -292,17 +294,17 @@ bool logica_do_menu(const Uint8 *estado) {
       if (menu.selecionado >= menu.tamanho) {
         menu.selecionado = 0;
       }
-      adicionar_cooldown();
+      adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_UP]) {
       menu.selecionado--;
       if (menu.selecionado < 0) {
         menu.selecionado = (menu.tamanho - 1);
       }
-      adicionar_cooldown();
+      adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_RIGHT]) {
-      adicionar_cooldown();
+      adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_LEFT]) {
-      adicionar_cooldown();
+      adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_RETURN]) {
       switch (menu.selecionado) {
           case 0: //Jogar!
@@ -313,15 +315,15 @@ bool logica_do_menu(const Uint8 *estado) {
             finalizado = true;
             break;
       }
-      adicionar_cooldown();
+      adicionar_cooldown(10);
     }
   }
 
   return finalizado;
 }
 
-void adicionar_cooldown() {
-  CoolDown = 10;
+void adicionar_cooldown(int i) {
+  CoolDown = i;
 }
 
 /* funções para: adicionar/renderizar/remover bolhas na tela */
@@ -412,6 +414,107 @@ void remover_tiros(int i) {
 }
 
 
+/* funções para: adicionar/renderizar/remover inimigos no mapa */
+
+void adicionar_inimigo_aleatorio() {
+  int indices = -1;
+
+  for (int i = 0; i < MAX_BOLHAS; i++) {
+    if (inimigos[i] == NULL) {
+      indices = i;
+      break;
+    }
+  }
+    
+  if (indices >= 0) {
+    int i = indices;
+    inimigos[i] = malloc(sizeof(Personagem));
+    inimigos[i]->altura = inimigos[i]->largura = obter_numero_aleatorio(50, 100);
+    inimigos[i]->viradoEsquerda = ((obter_numero_aleatorio(1, 2) == 2) ? true : false);
+    inimigos[i]->x = (inimigos[i]->viradoEsquerda ? (LARGURA - inimigos[i]->largura) : 0);
+    inimigos[i]->y = obter_numero_aleatorio((ALTURA * 0.33), (ALTURA - (inimigos[i]->altura + 40)));
+    inimigos[i]->sprite = inimigos[i]->sprite_bolhas = 0;
+    inimigos[i]->vivo = true;
+    inimigos[i]->visivel = true;
+  }
+}
+
+void mover_inimigos_aleatorio() {
+  if (!(tempoGlobal % 2)) {
+    for (int i = 0; i < MAX_INIMIGOS; i++) if (inimigos[i]) {
+      if ((inimigos[i]->vivo)) {
+        int delta_mais = (inimigos[i]->x + INIMIGOS_VELOCIDADE);
+        int delta_menos = (inimigos[i]->x - INIMIGOS_VELOCIDADE);
+
+        inimigos[i]->x = ((delta_mais > protagonista.x && delta_menos < protagonista.x) ? protagonista.x : ((delta_mais > protagonista.x) ? delta_menos : delta_mais));
+
+        delta_mais = (inimigos[i]->y + INIMIGOS_VELOCIDADE);
+        delta_menos = (inimigos[i]->y - INIMIGOS_VELOCIDADE);
+
+        inimigos[i]->y = ((delta_mais > protagonista.y && delta_menos < protagonista.y) ? protagonista.y : ((delta_mais > protagonista.y) ? delta_menos : delta_mais));
+
+        //inimigos[i]->x += (((inimigos[i]->x + INIMIGOS_VELOCIDADE) > protagonista.x) ? (INIMIGOS_VELOCIDADE * -1) : INIMIGOS_VELOCIDADE);
+        //inimigos[i]->y += (((inimigos[i]->y + INIMIGOS_VELOCIDADE) > protagonista.y) ? (INIMIGOS_VELOCIDADE * -1) : INIMIGOS_VELOCIDADE);
+        /*
+        if (inimigos[i]->x > protagonista.x) {
+          inimigos[i]->x--;
+        } else{
+          inimigos[i]->x++;
+        }
+        if (inimigos[i]->y > protagonista.y) {
+          inimigos[i]->y--;
+        } else {
+          inimigos[i]->y++;
+        }
+        */
+      }
+    }
+  }
+}
+
+void renderizar_inimigos_aleatorio() {
+  for (int i = 0; i < MAX_INIMIGOS; i++) if (inimigos[i]) {
+
+    if (tempoGlobal % 6 == 0) {
+      inimigos[i]->sprite++;
+      
+      if (inimigos[i]->sprite > 6) {
+        inimigos[i]->sprite = 0;
+      }
+
+      if (!inimigos[i]->vivo) {
+        if (inimigos[i]->sprite_bolhas >= 1) {
+          inimigos[i]->visivel = false;
+        }
+
+        inimigos[i]->sprite_bolhas++;
+      }
+    }
+
+    if (inimigos[i]->visivel) {
+      SDL_Rect eSrcRect = { 500*inimigos[i]->sprite, 0, 500, 500 };
+      SDL_Rect eRect = { inimigos[i]->x, inimigos[i]->y, inimigos[i]->largura, inimigos[i]->altura };
+      SDL_RenderCopyEx(renderer, texturas.inimigo, &eSrcRect, &eRect, 0, NULL, inimigos[i]->viradoEsquerda);
+    }
+
+    if (!inimigos[i]->vivo) {
+      SDL_Rect eSrcRect2 = { 500*inimigos[i]->sprite_bolhas, 0, 500, 500 };
+      SDL_Rect eRect2 = { inimigos[i]->x, inimigos[i]->y, inimigos[i]->largura, inimigos[i]->altura };
+      SDL_RenderCopyEx(renderer, texturas.bolhas, &eSrcRect2, &eRect2, 0, NULL, inimigos[i]->viradoEsquerda);
+    }
+  }
+}
+
+void remover_inimigos_aleatorio() {
+  for (int i = 0; i < MAX_INIMIGOS; i++) if (inimigos[i]) {
+    if ((!inimigos[i]->vivo) && inimigos[i]->sprite_bolhas >= 7) {
+       free(inimigos[i]);
+       inimigos[i] = NULL;
+    }
+  }
+}
+
+
 /* funções de física personagem */
 
 void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
@@ -423,13 +526,14 @@ void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
     personagem_parado(personagem);
   }
 
-  if (estado[SDL_SCANCODE_SPACE]) {
+  if (estado[SDL_SCANCODE_SPACE] && (!CoolDown)) {
     if (tempoGlobal % 6 == 0) {
       if (!personagem->viradoEsquerda) {
         adicionar_tiro(personagem->x + 120, personagem->y + 52, 10); 
       } else {
         adicionar_tiro(personagem->x, personagem->y + 52, -10);
       }
+      adicionar_cooldown(10);
     }
     personagem->atirando = true;
   } else {
@@ -499,7 +603,7 @@ bool processar_eventos() {
                 menu.aberto = true;
                 Mix_PlayMusic(sons.menu, 1);
               }
-              adicionar_cooldown();
+              adicionar_cooldown(10);
             }
           break;
         }
@@ -562,15 +666,15 @@ void renderizar() {
       SDL_RenderCopyEx(renderer, protagonista.textura, &srcRect, &rect, 0, NULL, protagonista.viradoEsquerda);
     }
 
-    //Copia o personagem inimigo para o renderer de acordo com o sprite atual
-    if (inimigo.visivel) {
-      SDL_Rect eSrcRect = { 52*inimigo.sprite, 0, 52, 81 };
-      SDL_Rect eRect = { inimigo.x, inimigo.y, 52 * 2, 81 * 2 };
-      SDL_RenderCopyEx(renderer, inimigo.textura, &eSrcRect, &eRect, 0, NULL, inimigo.viradoEsquerda);
-    }
-
-    //Renderia os tiros
+    //Renderiza os tiros
     renderizar_tiros();
+
+    //Move e renderiza os inimigos no mapa
+    mover_inimigos_aleatorio();
+    renderizar_inimigos_aleatorio();
+
+    //Remove os inimigos mortos
+    remover_inimigos_aleatorio();
   }
 
   //Atualiza temporizadores e renderiza eventos de invertvalo
@@ -609,25 +713,17 @@ void verificar_fisica() {
     tiros[i]->x += tiros[i]->dx;
     
     //Verifica se o tiro acertou o inimigo
-    if (tiros[i]->x > inimigo.x && tiros[i]->x < inimigo.x+(52 * 2) && tiros[i]->y > inimigo.y && tiros[i]->y < inimigo.y+(81 * 2)) {
-      inimigo.vivo = false;
+    for (int j = 0; j < MAX_INIMIGOS; j++) if (inimigos[j]) {
+      if (inimigos[j]->vivo) {
+        if (tiros[i]->x > inimigos[j]->x && tiros[i]->x < inimigos[j]->x+inimigos[j]->largura && tiros[i]->y > inimigos[j]->y && tiros[i]->y < inimigos[j]->y+inimigos[j]->altura) {
+          inimigos[j]->vivo = false;
+        }
+      }
     }
     
     //Remove os tiros que estão fora da camera
     if (tiros[i]->x < 0 || tiros[i]->x > LARGURA) {
       remover_tiros(i);
-    }
-  }
-  
-  if ((!inimigo.vivo) && tempoGlobal % 6 == 0) {
-    if (inimigo.sprite < 1) {
-      inimigo.sprite = 1;
-    } else if (inimigo.sprite >= 1) {
-      inimigo.sprite++;
-      if (inimigo.sprite > 2) {
-        inimigo.visivel = false;
-        inimigo.sprite = 2;      
-      }
     }
   }
 }
@@ -667,8 +763,8 @@ void carregar_assets() {
   SDL_FreeSurface(imagem);
 
   //Carrega imagem do inimigo
-  imagem = IMG_Load("assets/imagens/inimigo-1.png");
-  inimigo.textura = SDL_CreateTextureFromSurface(renderer, imagem);  
+  imagem = IMG_Load("assets/imagens/agua-viva.png");
+  texturas.inimigo = SDL_CreateTextureFromSurface(renderer, imagem);  
   SDL_FreeSurface(imagem);
 
   //Carrega o mapa  
@@ -684,6 +780,11 @@ void carregar_assets() {
   //Carrega a bolha
   imagem = IMG_Load("assets/imagens/bolha.png");
   texturas.bolha = SDL_CreateTextureFromSurface(renderer, imagem);
+  SDL_FreeSurface(imagem);
+
+  //Carrega a bolha de morte
+  imagem = IMG_Load("assets/imagens/bolhas.png");
+  texturas.bolhas = SDL_CreateTextureFromSurface(renderer, imagem);
   SDL_FreeSurface(imagem);
 
   //Carrega as Musicas e Efeitos

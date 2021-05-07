@@ -23,7 +23,7 @@ typedef struct {
   float x, y, dy;
   short vida;
   char *nome;
-  int sprite, sprite_linha, altura, largura;
+  int sprite, sprite_linha, altura, largura, sprite_bolhas;
   bool vivo, andando, pulando, viradoEsquerda, atirando, visivel;
   
   SDL_Texture *textura;
@@ -52,11 +52,13 @@ typedef struct {
   SDL_Texture *mapa;
   SDL_Texture *tiro;
   SDL_Texture *bolha;
+  SDL_Texture *bolhas;
   SDL_Texture *arma;
   SDL_Texture *lula_dancando;
   SDL_Texture *bob_dancando;
   SDL_Texture *menu;
   SDL_Texture *mao;
+  SDL_Texture *inimigo;
 } Texturas;
 
 typedef struct {
