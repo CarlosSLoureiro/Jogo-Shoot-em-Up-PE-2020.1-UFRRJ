@@ -934,7 +934,9 @@ void verificar_fisica() {
       if (inimigos[j]->vivo) {
         if (tiros[i]->x > inimigos[j]->x && tiros[i]->x < inimigos[j]->x+inimigos[j]->largura && tiros[i]->y > inimigos[j]->y && tiros[i]->y < inimigos[j]->y+inimigos[j]->altura) {
           inimigos[j]->vivo = false;
-          pontos++;
+          if (protagonista.vivo) {
+            pontos++;
+          }
           acertou = true;
         }
       }
