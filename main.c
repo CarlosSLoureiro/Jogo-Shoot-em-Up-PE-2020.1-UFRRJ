@@ -22,13 +22,17 @@
 
 /* Define as constantes de configurações de jogabilidade */
 
+#define MAX_VIDAS 6
 #define VIDA_INICIAL 5
+#define ENERGIA_INICIAL (MAX_VIDAS * 53)
 #define MAX_TIROS 100
 #define MAX_INIMIGOS 10
+#define PROTAGONISTA_VELOCIDADE 6 //em pixels
 #define INIMIGOS_RESPAW_INICIAL 2
 #define INIMIGOS_VELOCIDADE_INICIAL 1
 #define INIMIGOS_VELOCIDADE_INTERVALO 20
-
+#define VIDA_DROPADA_POR_INTERVALO_DE_PONTOS 4
+#define VIDA_DROPADA_CHANCE 33 //x chance em 100
 
 /* Define as variaveis do jogo */
 
@@ -56,6 +60,7 @@ Personagem protagonista;
 Personagem *inimigos[MAX_INIMIGOS] = { NULL };
 Mapa mapa;
 Objeto chao;
+Objeto vida_dropada;
 
 int main(int argc, char *argv[]) {
   iniciar_SDL2();
@@ -200,6 +205,8 @@ void carregar_assets() {
   sons.derrota = Mix_LoadMUS("assets/sons/derrota.wav");
   sons.tiro = Mix_LoadWAV("assets/sons/tiro.wav");
   sons.choque = Mix_LoadWAV("assets/sons/choque.wav");
+  sons.selecionar = Mix_LoadWAV("assets/sons/selecionar.wav");
+  sons.vida = Mix_LoadWAV("assets/sons/vida.wav");
 }
 
 /* Finaliza o SDL2 */
@@ -217,6 +224,8 @@ void finalizar_SDL2() {
   Mix_FreeMusic(sons.derrota);
   Mix_FreeChunk(sons.tiro);
   Mix_FreeChunk(sons.choque);
+  Mix_FreeChunk(sons.selecionar);
+  Mix_FreeChunk(sons.vida);
 
   //Remove as texturas
   SDL_DestroyTexture(texturas.ufrrj);
@@ -264,11 +273,15 @@ void iniciar_jogo() {
   protagonista.y = 0;
   protagonista.imunidade = 0;
   protagonista.vida = VIDA_INICIAL;
+  protagonista.energia = ENERGIA_INICIAL;
   protagonista.sprite = 0;
   protagonista.sprite_linha = 0;
   protagonista.vivo = true;
   protagonista.visivel = true;
   protagonista.viradoEsquerda = false;
+
+  //Define o valor inicial da vida que dropa
+  vida_dropada.visivel = false;
 
   //Remove todos os inimigos
   for (int i = 0; i < MAX_INIMIGOS; i++) if (inimigos[i]) {
@@ -438,12 +451,14 @@ bool logica_do_menu(const Uint8 *estado) {
       if (menu.selecionado >= menu.tamanho) {
         menu.selecionado = 0;
       }
+      Mix_PlayChannel(-1, sons.selecionar, 0);
       adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_UP]) {
       menu.selecionado--;
       if (menu.selecionado < 0) {
         menu.selecionado = (menu.tamanho - 1);
       }
+      Mix_PlayChannel(-1, sons.selecionar, 0);
       adicionar_cooldown(10);
     } else if (estado[SDL_SCANCODE_RIGHT]) {
       adicionar_cooldown(10);
@@ -642,6 +657,30 @@ void remover_inimigos_aleatorio() {
 }
 
 
+/* função para: renderizar e checar se o protagonista pegou a vida */
+void verificar_vida_dropada() {
+  if (vida_dropada.visivel) {
+
+    //Faz a vida cair no chão
+    if ((vida_dropada.y + vida_dropada.altura) < ALTURA) {
+      vida_dropada.y++;
+    }
+
+    //Renderiza a vida na tela
+    SDL_Rect srcRect = { 0, 0, 254, 254 };
+    SDL_Rect rect = { vida_dropada.x, vida_dropada.y, vida_dropada.largura, vida_dropada.altura };
+    SDL_RenderCopyEx(renderer, texturas.vida, &srcRect, &rect, 0, NULL, 0);
+
+    //Verifica se o protagonista pegou a vida
+    if ((vida_dropada.x + vida_dropada.largura) > protagonista.x && vida_dropada.x < (protagonista.x + (protagonista.largura * 0.8)) && (vida_dropada.y + vida_dropada.altura) > protagonista.y && vida_dropada.y < (protagonista.y + protagonista.altura)) {
+      protagonista.vida++;
+      Mix_PlayChannel(-1, sons.vida, 0);
+      vida_dropada.visivel = false;
+    }
+  }
+}
+
+
 /* funções de física e lógica do jogo */
 
 void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
@@ -676,15 +715,24 @@ void logica_do_jogo(Personagem *personagem, const Uint8 *estado) {
   if (personagem->pulando) {
     personagem->sprite_linha = 40;
     if (tempoGlobal % 6 == 0 && personagem->sprite < 5) {
-        personagem->sprite++;
+      personagem->sprite++;
     }
+    protagonista.energia = ENERGIA_INICIAL;
   } else {
     personagem->sprite_linha = 0;
+    if (tempoJogando > 5) {
+      protagonista.energia--;
+    }
+  }
+
+  if (protagonista.energia <= 0) {
+    remover_vida_protagonista(false);
+    protagonista.energia = ENERGIA_INICIAL;
   }
 }
 
 void personagem_andar(Personagem *personagem, bool esquerda) {
-  personagem->x += (esquerda ? -5 : 5);
+  personagem->x += (esquerda ? (PROTAGONISTA_VELOCIDADE * -1) : PROTAGONISTA_VELOCIDADE);
   personagem->andando = true;
   personagem->viradoEsquerda = esquerda;
 
@@ -701,6 +749,15 @@ void personagem_parado(Personagem *personagem) {
   personagem->andando = false;
 }
 
+void remover_vida_protagonista(bool deixar_imune) {
+  protagonista.vida--;
+  protagonista.vivo = (protagonista.vida > 0);
+  if (!protagonista.vivo) {
+    Mix_PlayMusic(sons.derrota, 1);
+  } else if (deixar_imune) {
+    protagonista.imunidade = 3; //em segundos
+  }
+}
 
 /* Função para processar os eventos do jogador */
 
@@ -792,31 +849,9 @@ void renderizar() {
       Mix_PlayMusic(sons.derrota, 1);
     }
 
-    Texto * game_over = obter_texto("Game Over!", 0x1100FF);
-    SDL_Rect rect;
+    renderizar_gameover();
 
-    rect.w = game_over->largura;
-    rect.h = game_over->altura;
-    rect.x = (LARGURA / 2) - (rect.w / 2);
-    rect.y = (ALTURA / 2) - (rect.h / 2);
-
-    char str_pontos[100];
-    sprintf(str_pontos, "Sua pontuacao foi: %lld!", pontos);
-    Texto * pontuacao = obter_texto(str_pontos, 0x1100FF);
-    SDL_Rect rect2;
-    rect2.w = pontuacao->largura;
-    rect2.h = pontuacao->altura;
-    rect2.x = (LARGURA / 2) - (rect2.w / 2);
-    rect2.y = (rect.y + rect.h + 10);
-
-    SDL_RenderCopy(renderer, texturas.derrota, NULL, NULL);
-    SDL_RenderCopy(renderer, game_over->textura, NULL, &rect);
-    SDL_RenderCopy(renderer, pontuacao->textura, NULL, &rect2);
-
-    SDL_DestroyTexture(game_over->textura);
-    SDL_DestroyTexture(pontuacao->textura);
-
-  } else {
+  } else { //esta jogando...
     
     if (!Mix_PlayingMusic()) {
       Mix_PlayMusic(sons.jogando, 1);
@@ -824,6 +859,9 @@ void renderizar() {
 
     //Copia o mapa para o renderer
     SDL_RenderCopy(renderer, texturas.mapa, NULL, NULL);
+
+    //Renderiza e verfica se o protagonista pegou alguma vida
+    verificar_vida_dropada();
 
     //Renderiza a interface (tempo de vida, tempo de jogo e quantidade de pontos)
     renderizar_interface();
@@ -840,6 +878,11 @@ void renderizar() {
 
     //Remove os inimigos mortos
     remover_inimigos_aleatorio();
+
+    //Renderiza o aviso na tela
+    if (5 > tempoJogando) {
+      renderizar_aviso();
+    }
   }
 
   //Atualiza temporizadores e renderiza eventos de invertvalo
@@ -853,13 +896,49 @@ void renderizar() {
   SDL_RenderPresent(renderer);
 }
 
+void renderizar_gameover() {
+  Texto * game_over = obter_texto("Game Over!", 0x1100FF);
+  SDL_Rect rect;
+
+  rect.w = game_over->largura;
+  rect.h = game_over->altura;
+  rect.x = (LARGURA / 2) - (rect.w / 2);
+  rect.y = (ALTURA / 2) - (rect.h / 2);
+
+  char str_pontos[100];
+  sprintf(str_pontos, "Sua pontuacao foi: %lld!", pontos);
+  Texto * pontuacao = obter_texto(str_pontos, 0x1100FF);
+  SDL_Rect rect2;
+  rect2.w = pontuacao->largura;
+  rect2.h = pontuacao->altura;
+  rect2.x = (LARGURA / 2) - (rect2.w / 2);
+  rect2.y = (rect.y + rect.h + 10);
+
+  SDL_RenderCopy(renderer, texturas.derrota, NULL, NULL);
+  SDL_RenderCopy(renderer, game_over->textura, NULL, &rect);
+  SDL_RenderCopy(renderer, pontuacao->textura, NULL, &rect2);
+
+  SDL_DestroyTexture(game_over->textura);
+  SDL_DestroyTexture(pontuacao->textura);
+}
+
 void renderizar_interface() {
+  //Renderiza as vidas do protagonista
   for (int i = 0; i < protagonista.vida; i++) {
     SDL_Rect srcRect = { 0, 0, 254, 254 };
     SDL_Rect rect = { 5 + (55 * i), 5, 50, 50 };
     SDL_RenderCopyEx(renderer, texturas.vida, &srcRect, &rect, 0, NULL, 0);
   }
   
+  //Rnderiza a energia do protagonista
+  SDL_Rect rect_e = { 10, 70, protagonista.energia, 5};
+  
+  RGB cor = obter_cor(0xFF0000);
+  SDL_SetRenderDrawColor(renderer, cor.r, cor.g, cor.b, 0);
+  SDL_RenderFillRect(renderer, &rect_e);
+
+
+  //Renderiza a pontuação
   char str_pontos[100];
   sprintf(str_pontos, "%lld", pontos);
   
@@ -874,6 +953,29 @@ void renderizar_interface() {
   SDL_RenderCopy(renderer, texto->textura, NULL, &rect);
   SDL_DestroyTexture(texto->textura);
 
+}
+
+void renderizar_aviso() {
+  Texto * texto1 = obter_texto("Pule para filtrar a agua", 0xFFFF00);
+  Texto * texto2 = obter_texto("e nao perder vidas!", 0xFFFF00);
+
+  SDL_Rect rect1;
+  rect1.w = texto1->largura;
+  rect1.h = texto1->altura;
+  rect1.x = (LARGURA / 2) - (rect1.w / 2);
+  rect1.y = (ALTURA / 3) - (rect1.h / 2);
+
+  SDL_Rect rect2;
+  rect2.w = texto2->largura;
+  rect2.h = texto2->altura;
+  rect2.x = (LARGURA / 2) - (rect2.w / 2);
+  rect2.y = (ALTURA / 2) - (rect2.h / 2);
+
+  SDL_RenderCopy(renderer, texto1->textura, NULL, &rect1);
+  SDL_RenderCopy(renderer, texto2->textura, NULL, &rect2);
+
+  SDL_DestroyTexture(texto1->textura);
+  SDL_DestroyTexture(texto2->textura);
 }
 
 void renderizar_protagonista() {
@@ -910,13 +1012,8 @@ void verificar_fisica() {
     for (int i = 0; i < MAX_INIMIGOS; i++) if (inimigos[i]) {
       if (inimigos[i]->vivo) {
         if ((inimigos[i]->x + (inimigos[i]->largura * 0.5)) > protagonista.x && inimigos[i]->x < (protagonista.x + (protagonista.largura * 0.8)) && (inimigos[i]->y + inimigos[i]->altura) > protagonista.y && inimigos[i]->y < (protagonista.y + protagonista.altura)) {
-          protagonista.vida--;
-          protagonista.vivo = (protagonista.vida > 0);
-          if (!protagonista.vivo) {
-            Mix_PlayMusic(sons.derrota, 1);
-          } else {
-            protagonista.imunidade = 3; //em segundos
-          }
+          inimigos[i]->vivo = false;
+          remover_vida_protagonista(true);
           Mix_PlayChannel(-1, sons.choque, 0);
           break;
         }
@@ -936,6 +1033,16 @@ void verificar_fisica() {
           inimigos[j]->vivo = false;
           if (protagonista.vivo) {
             pontos++;
+
+            if (protagonista.vida < MAX_VIDAS) {
+              //Dropa uma vida do monstro
+              if ((!(pontos % VIDA_DROPADA_POR_INTERVALO_DE_PONTOS)) && (!vida_dropada.visivel) && (VIDA_DROPADA_CHANCE >= obter_numero_aleatorio(1, 100))) {
+                vida_dropada.altura = vida_dropada.largura = 40;
+                vida_dropada.x = inimigos[j]->x + (inimigos[j]->largura / 2) - (vida_dropada.largura / 2);
+                vida_dropada.y = inimigos[j]->y;
+                vida_dropada.visivel = true;
+              }
+            }
           }
           acertou = true;
         }

@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_mixer.h>
+#include <stdbool.h>
 #include "estrutura.h"
 
 #ifndef FUNCOES_H
@@ -22,6 +23,7 @@ void adicionar_cooldown(int);
 bool processar_eventos();
 void atualizar_temporizadores();
 void atualizar_intervalos(int);
+void verificar_vida_dropada();
 void adicionar_inimigo_aleatorio();
 void renderizar_inimigos_aleatorio();
 void remover_inimigos_aleatorio();
@@ -29,11 +31,14 @@ void adicionar_bolha_aleatoria();
 void renderizar_bolhas_aleatorias();
 void remover_bolhas_aleatorias();
 void renderizar_interface();
+void renderizar_aviso();
 void renderizar_protagonista();
 void verificar_fisica();
+void renderizar_gameover();
 void logica_do_jogo(Personagem *, const Uint8 *);
 void personagem_andar(Personagem *, bool);
 void personagem_parado(Personagem *);
+void remover_vida_protagonista(bool);
 void adicionar_tiro(float, float, float);
 void renderizar_tiros();
 void remover_tiros();

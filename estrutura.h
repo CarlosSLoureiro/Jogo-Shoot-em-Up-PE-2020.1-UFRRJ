@@ -23,7 +23,7 @@ typedef struct {
   float x, y, dy;
   short vida;
   char *nome;
-  int sprite, sprite_linha, altura, largura, sprite_bolhas, imunidade;
+  int sprite, sprite_linha, altura, largura, sprite_bolhas, imunidade, energia;
   bool vivo, andando, pulando, viradoEsquerda, atirando, visivel;
 } Personagem;
 
@@ -38,7 +38,7 @@ typedef struct {
 
 typedef struct {
     float x, y, altura, largura;
-    bool solido, acima;
+    bool visivel, solido, acima;
 } Objeto;
 
 typedef struct {
@@ -69,6 +69,8 @@ typedef struct {
   Mix_Music *derrota;
   Mix_Chunk *tiro;
   Mix_Chunk *choque;
+  Mix_Chunk *selecionar;
+  Mix_Chunk *vida;
 } Sons;
 
 typedef struct {
