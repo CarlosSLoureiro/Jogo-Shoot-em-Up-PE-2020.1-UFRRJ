@@ -1,6 +1,4 @@
 # Jogo Shoot 'em Up PE 2020.1 UFRRJ
 Projeto de jogo Shoot 'em Up em C usando SDL2 para a disciplina de Programação Estruturada 2020.1 - UFRRJ.
-## [Veja no YouTube](https://www.youtube.com/watch?v=SEWzmx8Rehg)
-![Menu do Jogo](https://i.imgur.com/32XYxT3.png)
-![Dentro do Jogo](https://i.imgur.com/lsItssN.png)
-![Pontução Final](https://i.imgur.com/KP7Jvls.png)
+
+https://github.com/CarlosSLoureiro/Jogo-Shoot-em-Up-PE-2020.1-UFRRJ/assets/19580424/e4a41485-5bf1-4465-abc9-32ec5a2dfd26
